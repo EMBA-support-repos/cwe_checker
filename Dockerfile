@@ -5,16 +5,21 @@ WORKDIR /cwe_checker
 RUN apk add --no-cache musl-dev
 
 COPY . .
-RUN cargo build --target x86_64-unknown-linux-musl --locked
+RUN if [ $(uname -m) = "aarch64" ]; then \
+        export TARGET="aarch64-unknown-linux-musl"; \
+    else \
+        export TARGET="x86_64-unknown-linux-musl"; \
+    fi && \
+    cargo build --release --target "$TARGET" --locked
 
-FROM ghcr.io/fkie-cad/ghidra_headless_base:v11.2 as runtime
+FROM ghcr.io/fkie-cad/ghidra_headless_base:v11.2.1 AS runtime
 
 RUN apk add --no-cache bash
 
-ENV USER cwe
-ENV GROUPNAME cwe
-ENV UID 1000
-ENV GID 1000
+ENV USER=cwe
+ENV GROUPNAME=cwe
+ENV UID=1000
+ENV GID=1000
 
 RUN addgroup --gid "$GID" "$GROUPNAME" \
     && adduser \
@@ -33,7 +38,7 @@ RUN mkdir -p /home/cwe \
 USER cwe
 
 # Install all necessary files from the builder stage
-COPY --chown=${USER} --from=builder /cwe_checker/target/x86_64-unknown-linux-musl/debug/cwe_checker /home/cwe/cwe_checker
+COPY --chown=${USER} --from=builder /cwe_checker/target/*/release/cwe_checker /home/cwe/cwe_checker
 COPY --chown=${USER} --from=builder /cwe_checker/src/config.json /home/cwe/.config/cwe_checker/config.json
 COPY --chown=${USER} --from=builder /cwe_checker/src/lkm_config.json /home/cwe/.config/cwe_checker/lkm_config.json
 COPY --chown=${USER} --from=builder /cwe_checker/src/ghidra/p_code_extractor /home/cwe/.local/share/cwe_checker/ghidra/p_code_extractor
